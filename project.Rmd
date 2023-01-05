@@ -1,0 +1,132 @@
+---
+output: 
+  revealjs::revealjs_presentation:
+    keep_md: True
+    transition: zoom
+    self_contained: false
+    reveal_plugins: notes
+    css: styles.css
+    center: true
+    mathjax: NULL
+---
+<style>
+p {
+    color:red;
+}
+</style>
+
+# {#title data-background="https://www.gradedtalon.com/wp-content/uploads/2021/05/1610520139_T1H1DR_Stock_Market-1.jpg"}
+
+
+<h1 style="color: #fff">Pairs Trading</h1>
+<h3 style="color: #fff">Logan Morrill</h3>
+
+```{r echo = FALSE}
+knitr::opts_chunk$set(warning = FALSE)
+#Packages
+pacman::p_load(tidyverse,dygraphs,lubridate,tidyquant,timetk, ggpubr,plotly)
+```
+# {data-background=#262626}
+<h1 style="color: #fff">What is Pairs Trading?</h1>
+
+<p>Strategy: Trade 2 stocks betting they will revert back the mean of the spread between their prices <br>
+Stock Picks: Historically Highly correlated stocks <br>
+Correlation: >= 80 <br>
+When to Trade: Spread passes 1 std dev up or down <br>
+How to Trade: Go long the underperforming security and sell short the outperforming security</p>
+
+```{r Stock 1 Year Comparison Function, echo=FALSE}
+#Stock 1 Year Comparison Function
+#If cor is entered will return the correlation %
+#If dif is entered will return a graph of the difference between the stock prices with mean and st_dev
+#Else return a chart of the stock prices
+stonk_calculator <- function(tickers,x) { #Get price data for 1 year
+  stonks <- tq_get(tickers, get = "stock.prices", from = today() - years(1), to = today())
+  closes <- stonks %>% #get close prices side by side
+    select(date,symbol,close) %>%
+    pivot_wider(names_from = symbol, values_from = close)
+  if (x == 'cor') { #find correlation between tickers
+    res <- cor.test(closes[[2]], closes[[3]], method = "pearson")
+    paste(colnames(closes)[2],colnames(closes)[3],'correlation:',round(res$estimate * 100,3))
+  } else if (x == 'dif') {
+    closes$dif <- closes[[2]] - closes[[3]] #create difference between prices
+    closes$mean <- mean(closes$dif) #create mean
+    closes$up_std_dev <- closes$mean + sd(closes$dif) #create upper std_dev
+    closes$down_std_dev <- closes$mean - sd(closes$dif) #create lower std_dev
+    #Create ticker price difference chart
+    dif <- ggplot(data = closes, aes(x = date, y = dif)) +
+      geom_point(size = .01, aes(text = paste(colnames(closes)[2],closes[[2]],'\n',colnames(closes)[3],closes[[3]]))) + #add stock prices
+      geom_line() +
+      geom_hline(yintercept = closes$mean, color = 'red', size = .25) + #add horizontal mean line
+      geom_hline(yintercept = closes$up_std_dev, color = 'red', linetype = 'dotted', size = 0.1) + #add horizontal upper std_dev line
+      geom_hline(yintercept = closes$down_std_dev, color = 'red', linetype = 'dotted', size = 0.1) + #add horizontal lower std_dev line
+      labs(x = '', y = '', title = paste(colnames(closes)[2],'and',colnames(closes)[3],'stock price spread')) + #make title tickers
+      theme_bw()
+    ggplotly(dif)
+  } else {#Create chart of ticker prices for 1 year
+    stonks_chart <- stonks %>%
+      select(symbol, date, close) %>%
+      pivot_wider(names_from = symbol, values_from = close) %>%
+      tk_xts(date_var = date)
+    dygraph(stonks_chart)
+  }
+}
+```
+
+# General Motors (GM) and Ford (F)
+```{r GM_F_Pair, echo=FALSE} 
+#Compare Stock Returns for General Motors (GM) and Ford (F) to find a pair
+GM_F <- c('GM','F')
+stonk_calculator(GM_F,'cor')
+#Correlation = 73.195
+stonk_calculator(GM_F,'chart')
+```
+## {data-background=#262626}
+<h2 style="color: #fff">Mean reverse plot</h2>
+```{r GM_F_Difference, echo=FALSE}
+stonk_calculator(GM_F,'dif')
+```
+## {data-background=#262626}
+<h2 style="color: #fff">Is GM and F a good pair?</h2>
+
+<p> GM and F pair is risky, but could be traded </p>
+
+# Gold (GLD) and Silver (SLV)
+```{r GLD_SLV_Pair, echo=FALSE} 
+#Compare ETF Returns for Gold (GLD) and Silver (SLV) to find a pair
+GLD_SLV <- c('GLD','SLV')
+stonk_calculator(GLD_SLV,'cor')
+#Correlation = 46.912
+stonk_calculator(GLD_SLV,'chart')
+```
+
+## {data-background=#262626}
+<h2 style="color: #fff">Is GLD and SLV a good pair?</h2>
+
+<p> GLD and SLV pair is extremely risky, not suitable for trading </p>
+
+# S & P (SPY) and Nasdaq (QQQ)
+```{r SPY_QQQ_Pair, echo=FALSE} 
+#Compare ETF Returns for S & P (SPY) and Nasdaq (QQQ) to find a pair
+SPY_QQQ <- c('SPY','QQQ')
+stonk_calculator(SPY_QQQ,'cor')
+#Correlation = 96.025
+stonk_calculator(SPY_QQQ,'chart')
+```
+## {data-background=#262626}
+<h2 style="color: #fff">Mean reverse plot</h2>
+```{r SPY_QQQ_Difference, echo=FALSE}
+stonk_calculator(SPY_QQQ,'dif')
+```
+## {data-background=#262626}
+<h2 style="color: #fff">Is SPY and QQQ a good pair?</h2>
+
+<p> SPY and QQQ pair has little risk, very suitable for trading </p>
+
+# {data-background=#262626}
+<h1 style="color: #fff">Trade Pair Conclusions</h2>
+
+<h2 style = "color:red"> SPY and QQQ: Yes <br>
+GLD and SLV: No <br>
+GM and F: depends on risk tolerance
+</h2>
